@@ -6,6 +6,8 @@ use std::io::{BufRead, BufReader};
 use std::path::Path;
 use std::time::{Instant, SystemTime};
 
+mod spoiler;
+
 struct Nightjar {
     _start_time: Instant,
     hints: Hints,
