@@ -50,7 +50,7 @@ impl CategorizedSpoilers {
         }
 
         // Read through the file and check for the pattern "item name + 'in'"
-        // Don't love this, might be a better way
+        // Don't love this, might be a better way. only happens on load though.
         for line in reader.lines() {
             match line {
                 Ok(text) => {
@@ -108,9 +108,9 @@ impl Spoilers {
     }
 
     pub fn read_recent(&mut self) -> std::io::Result<()> {
-        let mut exe_path = std::env::current_exe().unwrap();
+        let mut exe_path = std::env::current_exe()?;
         exe_path.push("..\\randomizer\\spoiler_logs");
-        
+
         let parent_dir = exe_path.as_path();
 
         let read_dir = fs::read_dir(parent_dir)?;
@@ -126,7 +126,7 @@ impl Spoilers {
         if file_infos.first().is_none() {
             return Err(std::io::Error::new(
                 std::io::ErrorKind::Other,
-                "No files in spoioler directory!",
+                "No files in spoiler directory!",
             ));
         }
 
