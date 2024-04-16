@@ -7,6 +7,8 @@ use std::{
     time::SystemTime,
 };
 
+use imgui::{TreeNodeFlags, Ui};
+
 const DEFAULT_PATH: &str =
     "C:/Program Files (x86)/Steam/steamapps/common/Sekiro/randomizer/spoiler_logs";
 
@@ -20,6 +22,23 @@ impl CategorizedSpoilers {
         Self {
             category,
             item_map: vec![],
+        }
+    }
+
+    pub fn render(&self, ui: &mut Ui) {
+        let label = format!("{:?}", self.category);
+        if ui.collapsing_header(label, TreeNodeFlags::DEFAULT_OPEN) {
+            for (item, location) in &self.item_map {
+                let frmt_item = format!("{:<width$}", item.name, width = 32);
+                ui.text(frmt_item);
+                ui.same_line();
+                ui.text(&location.short);
+                if ui.is_item_hovered() {
+                    let token = ui.begin_tooltip();
+                    ui.text(&location.long);
+                    token.end();
+                }
+            }
         }
     }
 
@@ -61,6 +80,7 @@ pub struct Item {
     pub name: String,
 }
 
+#[derive(Debug)]
 pub enum CategoryType {
     Key,
     Quest,
