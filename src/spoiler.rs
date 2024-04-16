@@ -2,14 +2,10 @@ use std::{
     collections::HashMap,
     fs::{self, DirEntry},
     io::{BufRead, BufReader, Seek},
-    path::Path,
     time::SystemTime,
 };
 
 use imgui::{TreeNodeFlags, Ui};
-
-const DEFAULT_PATH: &str =
-    "C:/Program Files (x86)/Steam/steamapps/common/Sekiro/randomizer/spoiler_logs";
 
 pub struct CategorizedSpoilers {
     pub category: CategoryType,
@@ -24,7 +20,7 @@ impl CategorizedSpoilers {
         }
     }
 
-    pub fn render(&self, ui: &Ui) {
+    pub fn render(&self, ui: &Ui, show_tt: bool) {
         let label = format!("{:?}", self.category);
         if ui.collapsing_header(label, TreeNodeFlags::DEFAULT_OPEN) {
             for (item, location) in &self.item_map {
@@ -32,7 +28,7 @@ impl CategorizedSpoilers {
                 ui.text(frmt_item);
                 ui.same_line();
                 ui.text(&location.short);
-                if ui.is_item_hovered() {
+                if show_tt && ui.is_item_hovered() {
                     let tt_token = ui.begin_tooltip();
                     let wrap_token = ui.push_text_wrap_pos_with_pos(300.);
                     ui.text(&location.long);
@@ -112,7 +108,11 @@ impl Spoilers {
     }
 
     pub fn read_recent(&mut self) -> std::io::Result<()> {
-        let parent_dir = Path::new(DEFAULT_PATH);
+        let mut exe_path = std::env::current_exe().unwrap();
+        exe_path.push("..\\randomizer\\spoiler_logs");
+        
+        let parent_dir = exe_path.as_path();
+
         let read_dir = fs::read_dir(parent_dir)?;
 
         let mut file_infos = vec![];
@@ -210,7 +210,11 @@ impl Spoilers {
     }
 }
 
-fn text_between(file: &mut fs::File, start: &str, end: &str) -> Result<Vec<String>, std::io::Error> {
+fn text_between(
+    file: &mut fs::File,
+    start: &str,
+    end: &str,
+) -> Result<Vec<String>, std::io::Error> {
     file.rewind()?;
     let reader = BufReader::new(file);
     let mut found_hints = false;
@@ -235,7 +239,7 @@ fn text_between(file: &mut fs::File, start: &str, end: &str) -> Result<Vec<Strin
 
     Err(std::io::Error::new(
         std::io::ErrorKind::Other,
-        "Read to end of file without finding match",
+        format!("Read to end of file without finding match ({})", &start),
     ))
 }
 
