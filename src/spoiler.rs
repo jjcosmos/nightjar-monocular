@@ -1,8 +1,7 @@
 use std::{
     collections::HashMap,
     fs::{self, DirEntry},
-    hash::Hash,
-    io::{BufRead, BufReader},
+    io::{BufRead, BufReader, Seek},
     path::Path,
     time::SystemTime,
 };
@@ -25,7 +24,7 @@ impl CategorizedSpoilers {
         }
     }
 
-    pub fn render(&self, ui: &mut Ui) {
+    pub fn render(&self, ui: &Ui) {
         let label = format!("{:?}", self.category);
         if ui.collapsing_header(label, TreeNodeFlags::DEFAULT_OPEN) {
             for (item, location) in &self.item_map {
@@ -34,16 +33,19 @@ impl CategorizedSpoilers {
                 ui.same_line();
                 ui.text(&location.short);
                 if ui.is_item_hovered() {
-                    let token = ui.begin_tooltip();
+                    let tt_token = ui.begin_tooltip();
+                    let wrap_token = ui.push_text_wrap_pos_with_pos(300.);
                     ui.text(&location.long);
-                    token.end();
+                    wrap_token.end();
+                    tt_token.end();
                 }
             }
         }
     }
 
-    pub fn find_long_descriptions(&mut self, file: &fs::File) {
+    pub fn find_long_descriptions(&mut self, file: &mut fs::File) -> std::io::Result<()> {
         let item_names: Vec<String> = self.item_map.iter().map(|p| p.0.name.clone()).collect();
+        file.rewind()?;
 
         let reader = BufReader::new(file);
         let mut map: HashMap<String, &mut (Item, Location)> = HashMap::new();
@@ -52,6 +54,7 @@ impl CategorizedSpoilers {
         }
 
         // Read through the file and check for the pattern "item name + 'in'"
+        // Don't love this, might be a better way
         for line in reader.lines() {
             match line {
                 Ok(text) => {
@@ -68,6 +71,7 @@ impl CategorizedSpoilers {
                 Err(_) => continue,
             }
         }
+        Ok(())
     }
 }
 
@@ -132,39 +136,39 @@ impl Spoilers {
 
     pub fn read_file(&mut self, path: &str) -> std::io::Result<()> {
         self.source_file = path.to_owned();
-        let file = fs::File::open(&self.source_file)?;
+        let mut file = fs::File::open(&self.source_file)?;
         Spoilers::populate_hints_from_pattern(
-            &file,
+            &mut file,
             &mut self.key_items,
             "-- Hints for key items:",
         )?;
         Spoilers::populate_hints_from_pattern(
-            &file,
+            &mut file,
             &mut self.quest_items,
             "-- Hints for quest items:",
         )?;
         Spoilers::populate_hints_from_pattern(
-            &file,
+            &mut file,
             &mut self.upgrade_items,
             "-- Hints for upgrade items:",
         )?;
         Spoilers::populate_hints_from_pattern(
-            &file,
+            &mut file,
             &mut self.healing_items,
             "-- Hints for healing items:",
         )?;
 
-        self.key_items.find_long_descriptions(&file);
-        self.quest_items.find_long_descriptions(&file);
-        self.upgrade_items.find_long_descriptions(&file);
-        self.healing_items.find_long_descriptions(&file);
+        self.key_items.find_long_descriptions(&mut file)?;
+        self.quest_items.find_long_descriptions(&mut file)?;
+        self.upgrade_items.find_long_descriptions(&mut file)?;
+        self.healing_items.find_long_descriptions(&mut file)?;
 
         Ok(())
     }
 
     // will clear item map. always do this before geting long hints
     fn populate_hints_from_pattern(
-        file: &fs::File,
+        file: &mut fs::File,
         spoiler_chunk: &mut CategorizedSpoilers,
         pattern: &str,
     ) -> std::io::Result<()> {
@@ -192,6 +196,12 @@ impl Spoilers {
                         name: split.to_owned(),
                     };
                 }
+                if i == 1 {
+                    item.1 = Location {
+                        short: split.to_owned(),
+                        long: String::new(),
+                    }
+                }
             }
             spoiler_chunk.item_map.push(item);
         }
@@ -200,7 +210,8 @@ impl Spoilers {
     }
 }
 
-fn text_between(file: &fs::File, start: &str, end: &str) -> Result<Vec<String>, std::io::Error> {
+fn text_between(file: &mut fs::File, start: &str, end: &str) -> Result<Vec<String>, std::io::Error> {
+    file.rewind()?;
     let reader = BufReader::new(file);
     let mut found_hints = false;
     let mut hint_lines = vec![];
